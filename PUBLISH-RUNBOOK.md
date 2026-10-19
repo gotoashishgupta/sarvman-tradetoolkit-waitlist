@@ -56,11 +56,26 @@ device for retry.
 Verified 2026-10-20 against a mock relay that refuses: the page showed
 "That didn't save…" and kept the event queued.
 
-### Bot handling
+### Bot handling, and the relay's throttle
 
 A honeypot field (`website`, off-screen) is checked before sending; a filled
-honeypot means an automated submitter, and the event is not sent. Views are
-deduped per visitor per 30 minutes.
+honeypot means an automated submitter, and the event is not sent.
+
+The relay throttles the whole account, not one form: a burst of submissions
+gets `429 Rate limit exceeded` and is dropped. Two changes keep the page well
+under that:
+
+- **One view event per visitor per day**, not per visit. Unique visitors are
+  counted from distinct visitor ids, so every number the standard measures is
+  unchanged; only the volume of traffic falls.
+- **Views are not queued.** A view is sent once and, if it fails, it is lost.
+  A signup is never dropped: it is kept on the visitor's device (bounded, 20
+  entries) and retried on the next visit.
+
+Both endpoints of this relay share one quota, so a second endpoint is not a
+fallback. A sustained campaign that reaches the throttle will drop signups
+until it clears; that is the argument for moving capture to the A8 collector
+as soon as the board approval exists.
 
 ## Instrumentation (SAR-13 / A7, definition v1.1.0)
 
@@ -96,22 +111,27 @@ each message: `P1 waitlist - page view` and `P1 waitlist - signup`.
   page's own origin. It matches A7's `VISITOR_ID_PATTERN`.
 - **Bot exclusion.** A7 excludes bots by User-Agent at ingest. A browser post
   carries a real User-Agent, so the relay cannot filter the way the collector
-  would. The honeypot and the 30-minute per-visitor view dedupe are the
-  compensating controls.
+  would. The honeypot is the compensating control.
+- **View retries.** A7's collector retries nothing and the A8 collector owns
+  the raw log. Here a failed view is dropped rather than queued, so the view
+  count is a floor under the real traffic, and the signup count is exact.
 
 ## Daily tally (for the D+5 demand gate)
 
 Per day, from the catch mailbox:
 
 1. Count the emails with subject `P1 waitlist - signup`. That is the day's
-   signups.
+   signups. **Exclude the company's own test traffic** — probe addresses and
+   the addresses the team used to smoke-test the form — and say in the tally
+   how many were excluded, so the gate is not decided on a fake signup.
 2. Split them by source: `src`, else `utm_source`, else the referrer host in
    `r`. A signup from a search-engine referrer is the contractor-targeted
    traffic the gate's reach threshold is counted on; the rest are reported
    separately, not dropped.
-3. Page views: count the `P1 waitlist - page view` emails for the day. One
-   view per visitor per 30 minutes, so this is the day's unique visitors.
-4. Signup rate = signups / unique views.
+3. Unique visitors: count the distinct `visitor_id` values among that day's
+   `P1 waitlist - page view` emails. Unique visitors over the whole period is
+   the distinct `visitor_id` count across the period.
+4. Signup rate = signups / unique visitors.
 
 Post the tally on B2 ([SAR-20](/SAR/issues/SAR-20)) as it accumulates, with
 the raw numbers, in the format the gate protocol asks for.

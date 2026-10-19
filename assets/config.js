@@ -48,9 +48,19 @@ window.SARVMAN_CONFIG = {
     signup: "email_capture"
   },
 
-  // Minimum minutes between two "view" events from the same visitor id.
-  // Keeps the signup-rate denominator honest (one visit per visitor per window).
-  VIEW_DEDUPE_MINUTES: 30,
+  // Minimum hours between two "view" events from the same visitor id.
+  //
+  // One view event per visitor per day. The relay's free tier throttles the
+  // whole account, and a view per visit is the bulk of the traffic. This does
+  // not change any number the standard measures: unique visitors are counted
+  // from distinct visitor ids, so the daily tally computes "unique visitors
+  // today" and "unique visitors over the period" from the same events.
+  VIEW_DEDUPE_MINUTES: 1440,
+
+  // Most signups kept on a visitor's device waiting to be sent. A signup that
+  // could not be sent is retried on the next visit; the bound stops a long
+  // outage from filling the browser's storage.
+  MAX_QUEUED_SIGNUPS: 20,
 
   // The demand gate's pass/fail thresholds are the CEO's, pre-registered in the
   // P1 D+5 demand gate protocol (SAR-21, document `gate-protocol`). They are not

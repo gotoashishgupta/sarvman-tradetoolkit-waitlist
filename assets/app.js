@@ -67,6 +67,10 @@
   function enqueue(evt) {
     var q = readQueue();
     q.push(evt);
+    // Only signups are queued (see recordView), and the bound stops a long
+    // outage from filling the browser's storage.
+    var max = CFG.MAX_QUEUED_SIGNUPS || 20;
+    while (q.length > max) q.shift();
     writeQueue(q);
   }
 
@@ -186,7 +190,7 @@
 
   function recordView() {
     var now = Date.now();
-    var windowMs = (CFG.VIEW_DEDUPE_MINUTES || 30) * 60000;
+    var windowMs = (CFG.VIEW_DEDUPE_MINUTES || 1440) * 60000;
     try {
       var last = parseInt(localStorage.getItem(LAST_VIEW_KEY) || "0", 10);
       if (last && now - last < windowMs) return;   // already counted this visit
@@ -206,8 +210,11 @@
       _subject: "P1 waitlist - page view"
     }, measurementFields("view"), campaignFields());
 
-    enqueue(evt);
-    post(evt).catch(function () { /* stays queued */ });
+    // A view is best-effort: it is sent once and not queued. The relay's free
+    // tier throttles the whole account, and a queue of failed views would be
+    // retried on every later visit. A signup is never dropped, so only
+    // signups go in the queue.
+    post(evt).catch(function () { /* lost, and that is the trade */ });
   }
 
   function recordSignup(form) {
