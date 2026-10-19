@@ -9,6 +9,7 @@
 <meta property="og:description" content="Size the job in the browser. Load calc, duct sizing, refrigerant charge, filter sizing, heat pump sizing. Free, no account.">
 <meta property="og:type" content="website">
 <meta name="robots" content="index,follow">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
@@ -23,7 +24,7 @@
     <nav class="head-nav" aria-label="Sections">
       <a href="#calculators">Calculators</a>
       <a href="#why">Why</a>
-      <a href="#early-access">Early access</a>
+      <a href="#early-access">Notify me</a>
     </nav>
   </div>
 </header>
@@ -40,15 +41,15 @@
           Starting with the calculators crews ask for most &mdash; load
           calculation, duct sizing, refrigerant charge, filter sizing, heat pump sizing
           and more &mdash; plus printable spec sheets you can hand to the crew.
-          The exact launch set is fixed at scope lock, after the demand gate.
+          The final list of calculators still depends on what crews tell us they need.
         </p>
         <ul class="hero-points">
           <li>Works on a phone in an attic. No install, no download, no login.</li>
           <li>Print the calc sheet and the spec sheet from the same job.</li>
           <li>Free to use.</li>
         </ul>
-        <a class="btn btn-primary btn-lg" href="#early-access">Get early access</a>
-        <p class="hero-note">Launching soon. Early access is free, and so are the calculators.</p>
+        <a class="btn btn-primary btn-lg" href="#early-access">Notify me when it launches</a>
+        <p class="hero-note">We&rsquo;re building it now. We&rsquo;ll email you when it&rsquo;s live. The calculators are free.</p>
       </div>
 
       <!-- mock calculator card: illustrative example, not a working calculator -->
@@ -79,7 +80,7 @@
   <section id="calculators" class="band">
     <div class="wrap">
       <h2>What&rsquo;s coming</h2>
-      <p class="band-lede">The calculators we&rsquo;re starting with, in the order crews ask for them. The final launch set is fixed at scope lock for the audience the demand gate selects.</p>
+      <p class="band-lede">The calculators we&rsquo;re starting with, in the order crews ask for them. The final list depends on what crews tell us they size most often.</p>
       <div class="grid">
         <article class="card">
           <h3>Load calculation</h3>
@@ -115,11 +116,11 @@
       <h2>Built for the contractor who has no desk software</h2>
       <div class="cols">
         <div>
-          <h3>You&rsquo;re not losing money on the math. You&rsquo;re losing the hour.</h3>
+          <h3>Where the sizing happens today</h3>
           <p>
             Most small HVAC crews do the sizing in a spreadsheet, a supplier PDF printout, or a
-            group chat message. Each of those takes twenty minutes, can&rsquo;t
-            be re-run on site, and doesn&rsquo;t end up attached to the job file.
+            group chat message. Each of those is hard to re-run on site, and it doesn&rsquo;t
+            end up attached to the job file.
           </p>
           <p>
             The goal: one page per calculation you can re-run on site, with a result sheet
@@ -129,7 +130,7 @@
         <div>
           <h3>What it costs</h3>
           <p>
-            Free to use. Early access is free.
+            Nothing. The calculators are free to use, and there is no account to create.
           </p>
         </div>
       </div>
@@ -140,13 +141,11 @@
   <section id="early-access" class="band band-cta">
     <div class="wrap capture-wrap">
       <div class="capture-copy">
-        <h2>Get early access</h2>
+        <h2>Get notified when it launches</h2>
         <p>
           Join the list and we&rsquo;ll email you when the calculators go live.
-          We&rsquo;ll also ask you two questions about how you size jobs &mdash;
-          it takes a minute and it shapes what we build.
         </p>
-        <p class="muted">No spam. One launch email, one survey, and that&rsquo;s it. Unsubscribe link in every email.</p>
+        <p class="muted">No spam. One email when it launches. Unsubscribe any time.</p>
       </div>
 
       <form id="waitlist-form" class="card form-card" novalidate>
@@ -181,11 +180,18 @@
             <label><input type="checkbox" name="sizing" value="specs"> Spec sheets &amp; takeoff</label>
           </div>
         </fieldset>
+        <!-- Honeypot: a real visitor never sees or fills this. A bot that
+             submits the form fills every field it can, so this is the cheapest
+             first line of defence against a fake signup inflating the gate. -->
+        <div class="hp" aria-hidden="true">
+          <label for="website">Leave this field empty</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
         <label class="consent">
           <input type="checkbox" id="consent" name="consent" required>
-          <span>Send me the launch email and the short survey. I can unsubscribe any time.</span>
+          <span>Email me when the calculators launch. I can unsubscribe any time.</span>
         </label>
-        <button type="submit" id="submit-btn" class="btn btn-primary btn-block">Join the waitlist</button>
+        <button type="submit" id="submit-btn" class="btn btn-primary btn-block">Notify me when it launches</button>
         <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
       </form>
     </div>
@@ -201,7 +207,7 @@
     </div>
     <div class="foot-meta">
       <p>Built by <strong>Sarvman</strong>. TradeToolkit is a working name.</p>
-      <p>Waitlist page. Early access is free; the calculators are free.</p>
+      <p>Waitlist page. The calculators are free to use.</p>
       <p class="foot-legal">General information only. Independent informational service, not affiliated with ASHRAE, AHRI, the International Mechanical Code, or any equipment manufacturer. Standards, ratings and trademarks belong to their owners and are used for identification only.</p>
     </div>
   </div>

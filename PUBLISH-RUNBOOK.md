@@ -2,47 +2,100 @@
 
 Zero spend. Free tier only. No domain purchase, no paid tools, no ads.
 
+**Live URL:** https://gotoashishgupta.github.io/sarvman-tradetoolkit-waitlist/
+(company GitHub account, GitHub Pages, free tier, no custom domain)
+
 ## What is ready
 
-Static page, no build step: `index.html` + `assets/` (style.css, app.js, config.js).
-Verified: serves with 200s, valid markup, no duplicate ids, `node --check` clean
-on both JS files, responsive CSS breakpoints (860px / 620px) for mobile + desktop.
+Static page, no build step: `index.html` + `assets/` (style.css, app.js, config.js,
+favicon.svg). No dependencies, no tracking script, no cookie banner.
 
-## Blockers (need CTO, same day per issue)
+Verified 2026-10-20 with headless Chrome (CDP): **0 console messages, 0 page
+exceptions, 0 failed requests**, at 390x844 and 1280x900.
 
-1. **Inbox address** for capture. Set in `assets/config.js`:
-   - `CAPTURE_ENDPOINT: "https://formsubmit.co/ajax/<inbox-address>"`
-   - `CONTACT_EMAIL: "<same-inbox-address>"`
-   - Then submit the form once yourself: FormSubmit sends an **activation email**
-     to that inbox — click it or submissions are silently dropped.
-2. **Hosting account** (free tier). Any one of these, ~10 min:
-   - Cloudflare Pages (free, `*.pages.dev` subdomain), or
-   - Netlify Drop (drag the `waitlist/` folder, free `*.netlify.app` subdomain), or
-   - GitHub Pages (free `*.github.io`, needs a repo).
-   All three are free-tier subdomains, which the issue explicitly accepts.
+## Capture — how it works, and the two things it depends on
 
-Until both are done the page **must not** be presented as live: with no endpoint
-the form queues on-device and tells the visitor the list isn't live yet (no fake
-success — see `app.js` pre-publish guard).
+Every event is a form post to one endpoint (`CAPTURE_ENDPOINT` in
+`assets/config.js`). The relay delivers each one as an email to the catch inbox,
+so the durable record of a signup is the email itself.
 
-## Publish steps
+Two dependencies, both on the same inbox:
 
-1. Set the two config values above.
-2. Drag/drop or push the `waitlist/` folder contents to the host. No build command.
-3. Smoke test on the public URL (phone + desktop):
-   - Page loads, no console errors.
-   - `?src=test` visit → a `view` event posts (check inbox / endpoint log).
-   - Submit the form with a real address + consent → success message,
-     submission email arrives in the inbox with `event=signup`, `visitor_id`,
-     `src`/`utm_*`, `referrer`, `role`, `sizing`.
-   - Validation paths: bad email and missing consent each show inline errors.
-4. Post the live URL in a comment on **SAR-79 and B2 (SAR-20)**.
-5. Daily: count inbox `signup` emails per day + source (`src`/`utm_source`/
-   `referrer`, bots excluded by the 30-min visitor-dedupe window) and post the
-   tally on B2 as gate evidence.
+1. **The relay is per-origin and needs a one-time activation.** The first
+   submission from a new page origin makes FormSubmit email the catch inbox an
+   "Activate Form" link, and submissions from that origin are refused until it
+   is clicked. The published origin is activated. A new origin (a preview
+   deploy, a new domain) needs its own click.
+2. **The catch inbox must be readable by the Marketing Lead.** Until A8 lands
+   there is no company store, so the inbox is the list.
 
-## Moving capture later (no page rewrite)
+Both move to the A8 first-party collector by changing `CAPTURE_ENDPOINT` and
+`CONTACT_EMAIL` — no other file changes.
 
-When the A8 first-party store lands, change only `CAPTURE_ENDPOINT` to the new
-POST URL. Event shape (`event`, `event_version`, `visitor_id`, `capture_surface`,
-`page_path`, `src`/`utm_*`, `referrer`) is stable per the SAR-66 contract.
+### The page never shows a success it did not get
+
+The relay answers HTTP 200 with `{"success":"false"}` when it refuses a
+submission. `app.js` normalises that field and treats anything but `"true"` as
+a refusal, so a refused signup shows the failure path and stays queued on the
+visitor's device for retry. Verified against a mock relay that refuses
+(2026-10-20): the page showed "That didn't send…" and kept the event queued.
+
+The client also sends a honeypot field (`website`, off-screen). A filled
+honeypot means an automated submitter: the event is not sent.
+
+## Instrumentation (SAR-13 / A7, definition v1.1.0)
+
+Every event carries the A7 payload next to this page's readable fields:
+
+| A7 field | Value sent |
+| --- | --- |
+| `v` | `1` |
+| `e` | `pageview` (view) / `email_capture` (signup) |
+| `pa` | page path |
+| `r` | referrer URL |
+| `t` | client timestamp, epoch ms |
+| `c` | `unknown` — P1 is a professional audience and A7 sets its consent mode to `not-required` (platform `products.ts`), so this page sets no analytics consent state. The marketing consent the visitor ticks is a separate field and is not the same thing. |
+| `o` | `{ source }` — `src`, else `utm_source`, else the referrer host, else `direct` |
+
+Also sent, for the SAR-66 / SAR-94 contracts: `event`, `event_version`,
+`definition_version`, `capture_surface`, `product`, `ts`, `visitor_id`,
+`page_title`, `page_path`, `referrer`, `src`/`utm_*`. On a signup: `email`,
+`company`, `role`, `sizing`, `consent`.
+
+`_subject` is set per event so the inbox can be tallied without opening each
+message: `P1 waitlist - page view` and `P1 waitlist - signup`.
+
+### Deviations from A7, and why
+
+- **Transport.** A7 assumes the A8 collector (Cloudflare Worker + D1). The
+  company hosting and analytics accounts cannot be created before the board
+  approval at the D+5 gate, so events travel through a free-tier mail relay
+  and are counted from the catch inbox. The payload is A7-shaped, so it can be
+  replayed into the A8 collector unchanged.
+- **Visitor id.** A7 takes the visitor id from a server-set `sv_uid` cookie.
+  There is no server here, so the id is a UUIDv4 kept in `localStorage` on the
+  page's own origin. It matches A7's `VISITOR_ID_PATTERN`.
+- **Bot exclusion.** A7 excludes bots by User-Agent at ingest. A browser post
+  carries a real User-Agent, so the relay cannot filter the way the collector
+  would. The honeypot and the 30-minute per-visitor view dedupe are the
+  compensating controls.
+
+## Daily tally (for the D+5 demand gate)
+
+Per day, from the catch inbox:
+
+1. Count the emails with subject `P1 waitlist - signup`. That is the day's
+   signups.
+2. Split them by source: `src`, else `utm_source`, else the referrer host in
+   `r`. A signup from a search-engine referrer is the contractor-targeted
+   traffic the gate's reach threshold is counted on; the rest are reported
+   separately, not dropped.
+3. Page views: count the `P1 waitlist - page view` emails for the day. One
+   view per visitor per 30 minutes, so this is the day's unique visitors.
+4. Signup rate = signups / unique views.
+
+Post the tally on B2 ([SAR-20](/SAR/issues/SAR-20)) as it accumulates, with
+the raw numbers, in the format the gate protocol asks for.
+
+When A8 lands, replace the inbox tally with the A8 collector's own report so
+the numbers carry the ratified definition version.

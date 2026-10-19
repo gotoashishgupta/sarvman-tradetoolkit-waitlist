@@ -154,6 +154,10 @@ a { color: var(--accent); }
 .form-status.ok { color: var(--accent); font-weight: 620; }
 .form-status.err { color: #a02c2c; font-weight: 600; }
 
+/* Honeypot: moved off-screen rather than display:none, so it is still
+   submitted by an automated client that fills every field it can find. */
+.hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
 /* ── footer ─────────────────────────────────────────────── */
 .site-foot { border-top: 1px solid var(--line); padding: 34px 0 44px; }
 .foot-grid { display: flex; justify-content: space-between; gap: 26px; flex-wrap: wrap; }

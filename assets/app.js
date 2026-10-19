@@ -26,7 +26,18 @@
 
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    return "v-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+    // Fallback shaped like a UUIDv4 so it still matches the A7 visitor-id
+    // pattern (constants.ts VISITOR_ID_PATTERN) when the crypto API is absent.
+    var b = new Uint8Array(16);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b);
+    else for (var i = 0; i < 16; i += 1) b[i] = Math.floor(Math.random() * 256);
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    var hex = [];
+    for (var j = 0; j < 16; j += 1) hex.push(b[j].toString(16).padStart(2, "0"));
+    return hex.slice(0, 4).join("") + "-" + hex.slice(4, 6).join("") + "-" +
+      hex.slice(6, 8).join("") + "-" + hex.slice(8, 10).join("") + "-" +
+      hex.slice(10, 16).join("");
   }
 
   function visitorId() {
@@ -90,6 +101,29 @@
     }).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.text();
+    }).then(function (text) {
+      // The relay answers HTTP 200 with {"success":"false","message":"..."} when
+      // it refuses a submission — an unactivated form, a blocked payload. A 200
+      // alone is not acceptance, so a refusal must not read as a signup.
+      //
+      // "success" arrives as a string ("true" / "false"), so it is normalised
+      // before it is read: comparing it to the boolean false would let every
+      // refusal through as a success.
+      var parsed = null;
+      try { parsed = JSON.parse(text); } catch (e) { parsed = null; }
+      if (parsed && typeof parsed === "object") {
+        var accepted = true;
+        if (parsed.success !== undefined && parsed.success !== null) {
+          accepted = String(parsed.success).trim().toLowerCase() === "true";
+        }
+        if (parsed.error) accepted = false;
+        if (!accepted) {
+          var err = new Error(parsed.message || "capture refused the submission");
+          err.refused = true;
+          throw err;
+        }
+      }
+      return text;
     });
   }
 
@@ -107,6 +141,42 @@
     chain.then(function () { writeQueue(remaining); });
   }
 
+  /* ── A7 measurement fields (SAR-13, definition 1.1.0) ──────
+   *
+   * Every event carries the A7 payload next to this page's readable fields:
+   *   v  payload version              e  A7 event type
+   *   pa page path                    r  referrer
+   *   t  client timestamp (epoch ms)  c  analytics consent state
+   *   o  event properties
+   *
+   * The referrer is sent as a URL here and classified by the standard's own
+   * rules at count time (search vs direct vs own property vs other), so the
+   * classification lives in one implementation instead of two.
+   */
+
+  function measurementFields(kind) {
+    var params = new URLSearchParams(location.search);
+    var referrer = document.referrer || "";
+    var source = params.get("src") || params.get("utm_source") || "";
+    if (!source && referrer) {
+      try { source = new URL(referrer).hostname; } catch (e) { source = ""; }
+    }
+    if (!source) source = "direct";
+    return {
+      v: 1,
+      e: (CFG.A7_EVENT_NAME && CFG.A7_EVENT_NAME[kind]) || kind,
+      pa: location.pathname,
+      r: referrer,
+      t: Date.now(),
+      // P1 is a professional audience and A7 sets its consent mode to
+      // "not-required" (platform products.ts), so this page sets no analytics
+      // consent state. The marketing consent the visitor ticks is carried in
+      // its own field and is not the same thing.
+      c: "unknown",
+      o: { source: source }
+    };
+  }
+
   /* ── events ───────────────────────────────────────────── */
 
   function recordView() {
@@ -121,11 +191,15 @@
     var evt = Object.assign({
       event: "view",
       event_version: "1",
+      definition_version: CFG.MEASUREMENT_DEFINITION_VERSION || "1.1.0",
       capture_surface: CFG.CAPTURE_SURFACE || "landing_page",
       ts: new Date().toISOString(),
       visitor_id: visitorId(),
-      page_title: document.title
-    }, campaignFields());
+      page_title: document.title,
+      // Subject line in the catch inbox, so the daily tally can tell a page
+      // view from a signup without opening each message.
+      _subject: "P1 waitlist - page view"
+    }, measurementFields("view"), campaignFields());
 
     enqueue(evt);
     post(evt).catch(function () { /* stays queued */ });
@@ -139,6 +213,7 @@
     var evt = Object.assign({
       event: "signup",
       event_version: "1",
+      definition_version: CFG.MEASUREMENT_DEFINITION_VERSION || "1.1.0",
       capture_surface: CFG.CAPTURE_SURFACE || "landing_page",
       ts: new Date().toISOString(),
       visitor_id: visitorId(),
@@ -146,8 +221,9 @@
       company: (form.company.value || "").trim(),
       role: form.role.value,
       sizing: sizing,
-      consent: form.consent.checked ? "yes" : "no"
-    }, campaignFields());
+      consent: form.consent.checked ? "yes" : "no",
+      _subject: "P1 waitlist - signup"
+    }, measurementFields("signup"), campaignFields());
 
     enqueue(evt);
     return post(evt);
@@ -176,6 +252,15 @@
         status.className = "form-status err";
         status.textContent = "Please tick the box so we can email you.";
         form.consent.focus();
+        return;
+      }
+      // Honeypot: a filled hidden field means an automated submitter. Do not
+      // send it, and do not tell it the form worked.
+      if (form.website && form.website.value.trim()) {
+        if (window.console) console.warn("signup rejected by honeypot");
+        status.className = "form-status err";
+        status.textContent = "That didn't send. Please try again in a browser, or email us and we'll add you.";
+        btn.disabled = false;
         return;
       }
 
