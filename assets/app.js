@@ -10,6 +10,11 @@
  * Every event also carries product, page_path and capture_surface per the SAR-66
  * contract ("landing_page" here; "result_block" / "spec_sheet_end" on the
  * B6 tool pages) and the SAR-94 finance data contract (product id per product).
+ *
+ * Every event also carries the A7 payload (SAR-13, definition v1.1.0): the
+ * referrer is classified by the standard's own rules at count time, and the
+ * same payload can be replayed into the A8 collector when it lands.
+ *
  * Events are queued in localStorage and flushed to the endpoint, so a
  * signup that happens while the endpoint is unreachable is not lost.
  */
@@ -46,7 +51,7 @@
       if (!v) { v = uuid(); localStorage.setItem(VID_KEY, v); }
       return v;
     } catch (e) {
-      return "v-volatile";
+      return uuid();
     }
   }
 
@@ -79,6 +84,42 @@
     return out;
   }
 
+  /* ── A7 measurement fields (SAR-13, definition v1.1.0) ──
+   *
+   * Every event carries the A7 payload next to this page's readable fields:
+   *   v  payload version              e  A7 event type
+   *   pa page path                    r  referrer
+   *   t  client timestamp (epoch ms)  c  analytics consent state
+   *   o  event properties
+   *
+   * The referrer travels as a URL and is classified by the standard's own
+   * rules at count time (search vs direct vs own property vs other), so the
+   * classification lives in one implementation instead of two.
+   */
+
+  function measurementFields(kind) {
+    var params = new URLSearchParams(location.search);
+    var referrer = document.referrer || "";
+    var source = params.get("src") || params.get("utm_source") || "";
+    if (!source && referrer) {
+      try { source = new URL(referrer).hostname; } catch (e) { source = ""; }
+    }
+    if (!source) source = "direct";
+    return {
+      v: 1,
+      e: (CFG.A7_EVENT_NAME && CFG.A7_EVENT_NAME[kind]) || kind,
+      pa: location.pathname,
+      r: referrer,
+      t: Date.now(),
+      // P1 is a professional audience and A7 sets its consent mode to
+      // "not-required" (platform products.ts), so this page sets no analytics
+      // consent state. The marketing consent the visitor ticks is carried in
+      // its own field and is not the same thing.
+      c: "unknown",
+      o: { source: source }
+    };
+  }
+
   /* ── transport ────────────────────────────────────────── */
 
   function toFormBody(evt) {
@@ -103,8 +144,8 @@
       return r.text();
     }).then(function (text) {
       // The relay answers HTTP 200 with {"success":"false","message":"..."} when
-      // it refuses a submission — an unactivated form, a blocked payload. A 200
-      // alone is not acceptance, so a refusal must not read as a signup.
+      // it refuses a submission. A 200 alone is not acceptance, so a refusal
+      // must not read as a signup.
       //
       // "success" arrives as a string ("true" / "false"), so it is normalised
       // before it is read: comparing it to the boolean false would let every
@@ -139,42 +180,6 @@
       });
     });
     chain.then(function () { writeQueue(remaining); });
-  }
-
-  /* ── A7 measurement fields (SAR-13, definition 1.1.0) ──────
-   *
-   * Every event carries the A7 payload next to this page's readable fields:
-   *   v  payload version              e  A7 event type
-   *   pa page path                    r  referrer
-   *   t  client timestamp (epoch ms)  c  analytics consent state
-   *   o  event properties
-   *
-   * The referrer is sent as a URL here and classified by the standard's own
-   * rules at count time (search vs direct vs own property vs other), so the
-   * classification lives in one implementation instead of two.
-   */
-
-  function measurementFields(kind) {
-    var params = new URLSearchParams(location.search);
-    var referrer = document.referrer || "";
-    var source = params.get("src") || params.get("utm_source") || "";
-    if (!source && referrer) {
-      try { source = new URL(referrer).hostname; } catch (e) { source = ""; }
-    }
-    if (!source) source = "direct";
-    return {
-      v: 1,
-      e: (CFG.A7_EVENT_NAME && CFG.A7_EVENT_NAME[kind]) || kind,
-      pa: location.pathname,
-      r: referrer,
-      t: Date.now(),
-      // P1 is a professional audience and A7 sets its consent mode to
-      // "not-required" (platform products.ts), so this page sets no analytics
-      // consent state. The marketing consent the visitor ticks is carried in
-      // its own field and is not the same thing.
-      c: "unknown",
-      o: { source: source }
-    };
   }
 
   /* ── events ───────────────────────────────────────────── */
@@ -219,7 +224,7 @@
       visitor_id: visitorId(),
       email: (form.email.value || "").trim(),
       company: (form.company.value || "").trim(),
-      role: form.role.value,
+      segment: form.segment.value,
       sizing: sizing,
       consent: form.consent.checked ? "yes" : "no",
       _subject: "P1 waitlist - signup"
@@ -259,7 +264,7 @@
       if (form.website && form.website.value.trim()) {
         if (window.console) console.warn("signup rejected by honeypot");
         status.className = "form-status err";
-        status.textContent = "That didn't send. Please try again in a browser, or email us and we'll add you.";
+        status.textContent = "That didn't save. Please try again in a moment.";
         btn.disabled = false;
         return;
       }
@@ -271,11 +276,8 @@
       // signup queued on-device and tell the visitor plainly what to do.
       if (!ENDPOINT) {
         recordSignup(form).catch(function () {});
-        var contact = (CFG.CONTACT_EMAIL || "").trim();
         status.className = "form-status err";
-        status.textContent = contact
-          ? "The signup list isn't live yet — please email " + contact + " and we'll add you."
-          : "The signup list isn't live yet — please check back soon.";
+        status.textContent = "The signup list isn't live yet — please check back soon.";
         btn.disabled = false;
         return;
       }
@@ -284,16 +286,13 @@
         if (res && res.queued && res.reason === "no-endpoint") return; // handled above
         form.reset();
         status.className = "form-status ok";
-        status.textContent = "You're on the list — we'll email you when the calculators go live.";
+        status.textContent = "You're on the list. We'll email you when the calculators go live.";
         btn.disabled = false;
       }).catch(function (err) {
-        // Post failed but the signup stays queued on-device and retries on
+        // The post failed, but the signup stays queued on-device and retries on
         // the next visit (flush on boot + on 'online'). Tell the visitor.
-        var contact2 = (CFG.CONTACT_EMAIL || "").trim();
         status.className = "form-status err";
-        status.textContent = contact2
-          ? "That didn't send, but it's saved on this device and will retry. Or email " + contact2 + " and we'll add you."
-          : "That didn't send, but it's saved on this device and will retry automatically.";
+        status.textContent = "That didn't save. Please try again in a moment.";
         btn.disabled = false;
         if (window.console) console.error("signup post failed", err);
       });

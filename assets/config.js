@@ -1,34 +1,28 @@
 /*
  * Sarvman TradeToolkit — waitlist landing page
- * Single source of truth for the capture endpoint and experiment thresholds.
+ * Single source of truth for the capture endpoint and event contract.
  * Changing CAPTURE_ENDPOINT is the only edit needed to move capture between
  * providers (e.g. first-party form endpoint once the platform lands).
  */
 window.SARVMAN_CONFIG = {
+  // Capture endpoint. Format: https://formsubmit.co/ajax/<form-id>
+  // The form id is the activated handle for this site's endpoint; it is not the
+  // inbox address, so the page does not publish the mailbox. Every submission
+  // is delivered as an email to the company mail catch, which is where the
+  // lead list lives until the A8 platform store is ready. Changing this value
+  // is the only edit needed to move capture to a first-party endpoint later.
+  //
+  // The relay activates per page origin, not per form: a submission from an
+  // origin it has not seen is refused with "This form needs Activation" and
+  // dropped. The published origin below is activated (verified 2026-10-20).
+  // A new origin — a preview deploy, the company domain — needs its own
+  // one-click activation before it can accept anything.
+  CAPTURE_ENDPOINT: "https://formsubmit.co/ajax/a75a3e890dd0d599cf4ea72f8ee32e40",
+
   // Product this page belongs to. Stamped on every event per the SAR-94
   // finance data contract so the weekly digest can report per product.
   // P1 TradeToolkit = "p1-tradetoolkit" (SAR-30); P2/P3 pages use their own id.
   PRODUCT_ID: "p1-tradetoolkit",
-
-  // FormSubmit AJAX endpoint. Format: https://formsubmit.co/ajax/<inbox-address>
-  // Every submission is delivered as an email to that inbox, with a JSON response.
-  //
-  // Why a mail relay: A8 (SAR-14) owns the first-party collector, but the
-  // company hosting and analytics accounts cannot be created until the board
-  // approval at the D+5 gate. The gate needs a week of signups, so capture
-  // runs on a free-tier mail relay now and moves to the A8 collector by
-  // changing this one value (see PUBLISH-RUNBOOK.md).
-  //
-  // FormSubmit requires a one-time activation per recipient and page origin:
-  // the first submission makes FormSubmit email the address an "Activate
-  // Form" link, and submissions from that origin are refused until it is
-  // clicked. The published origin below is activated (verified 2026-10-20);
-  // a new origin needs its own click before it can accept anything.
-  CAPTURE_ENDPOINT: "https://formsubmit.co/ajax/gotoashishgupta@gmail.com",
-
-  // Public contact shown on the form when capture is unreachable. Same inbox
-  // as CAPTURE_ENDPOINT in production; a mailto fallback so no signup is lost.
-  CONTACT_EMAIL: "gotoashishgupta@gmail.com",
 
   // Hidden fields stamped on every event so a submission can be traced back
   // to the campaign that produced it.
@@ -58,13 +52,7 @@ window.SARVMAN_CONFIG = {
   // Keeps the signup-rate denominator honest (one visit per visitor per window).
   VIEW_DEDUPE_MINUTES: 30,
 
-  // Pre-registered pass/fail thresholds for the D+5 demand gate.
-  // See the evidence pack: SAR-20 / "demand-validation plan".
-  THRESHOLDS: {
-    signupRatePass: 0.02,        // visitor -> email capture rate (SAR-1 plan rev.3, section 6)
-    signupRateMarginal: 0.005,    // below this the demand signal is treated as absent
-    minSignups: 20,               // absolute floor below which a rate is not meaningful
-    minConversations: 10,         // completed contractor conversations
-    minConversationsQualifying: 5 // conversations confirming the problem and the job
-  }
+  // The demand gate's pass/fail thresholds are the CEO's, pre-registered in the
+  // P1 D+5 demand gate protocol (SAR-21, document `gate-protocol`). They are not
+  // duplicated here on purpose: this page measures, it does not decide.
 };

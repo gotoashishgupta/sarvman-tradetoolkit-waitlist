@@ -133,6 +133,7 @@ a { color: var(--accent); }
   border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink);
 }
 .field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.field__help { margin: 6px 0 0; font-size: .85rem; color: var(--ink-soft); }
 .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; }
 .checks label { display: flex; align-items: center; gap: 8px; font-weight: 450; font-size: .93rem; margin: 0; }
 .checks input { accent-color: var(--accent); width: 16px; height: 16px; }

@@ -7,41 +7,60 @@ Zero spend. Free tier only. No domain purchase, no paid tools, no ads.
 
 ## What is ready
 
-Static page, no build step: `index.html` + `assets/` (style.css, app.js, config.js,
-favicon.svg). No dependencies, no tracking script, no cookie banner.
+Static site, no build step, no dependencies, no tracking script, no cookie banner:
 
-Verified 2026-10-20 with headless Chrome (CDP): **0 console messages, 0 page
-exceptions, 0 failed requests**, at 390x844 and 1280x900.
+```
+index.html      the waitlist page
+privacy.html    what happens to the details typed in
+robots.txt      the waitlist stays out of the index
+assets/         style.css, app.js, config.js, favicon.svg
+```
 
-## Capture — how it works, and the two things it depends on
+Verified 2026-10-20 with headless Chrome over the DevTools protocol:
+**0 console messages, 0 page exceptions, 0 failed requests**, at 390x844 and
+1280x900.
 
-Every event is a form post to one endpoint (`CAPTURE_ENDPOINT` in
-`assets/config.js`). The relay delivers each one as an email to the catch inbox,
-so the durable record of a signup is the email itself.
+The page is `noindex` and `robots.txt` disallows it, because the indexable
+content estate is A10's job (SAR-16) and this is a demand test on a temporary
+URL. Gate traffic comes from the social/community channels, not from search.
 
-Two dependencies, both on the same inbox:
+## Capture — one endpoint, one source of truth
 
-1. **The relay is per-origin and needs a one-time activation.** The first
-   submission from a new page origin makes FormSubmit email the catch inbox an
-   "Activate Form" link, and submissions from that origin are refused until it
-   is clicked. The published origin is activated. A new origin (a preview
-   deploy, a new domain) needs its own click.
-2. **The catch inbox must be readable by the Marketing Lead.** Until A8 lands
-   there is no company store, so the inbox is the list.
+Every event is a form post to `CAPTURE_ENDPOINT` in `assets/config.js`. The
+relay delivers each one as an email to the company catch mailbox, so the
+durable record of a signup is the email itself. The endpoint is a **form id**,
+not the inbox address, so the page does not publish the mailbox.
 
-Both move to the A8 first-party collector by changing `CAPTURE_ENDPOINT` and
-`CONTACT_EMAIL` — no other file changes.
+Moving capture to the A8 first-party collector is a one-value change in
+`assets/config.js` — no other file changes. The event payload is already
+A7-shaped, so the same events can be replayed into the collector.
+
+### One dependency: the relay activates per page origin
+
+A submission from an origin the relay has not seen is refused with
+"This form needs Activation" and dropped. The published origin is activated
+(verified 2026-10-20). A new origin — a preview deploy, the company domain
+after A8 — needs its own one-click activation before it can accept anything.
+
+There is no separate activation for the form id: it is a handle for the
+mailbox, not a bypass.
 
 ### The page never shows a success it did not get
 
 The relay answers HTTP 200 with `{"success":"false"}` when it refuses a
-submission. `app.js` normalises that field and treats anything but `"true"` as
-a refusal, so a refused signup shows the failure path and stays queued on the
-visitor's device for retry. Verified against a mock relay that refuses
-(2026-10-20): the page showed "That didn't send…" and kept the event queued.
+submission. `app.js` normalises that field — it arrives as a **string**, not a
+boolean, and comparing it to `false` lets every refusal through as a success.
+A refused signup shows the failure path and stays queued on the visitor's
+device for retry.
 
-The client also sends a honeypot field (`website`, off-screen). A filled
-honeypot means an automated submitter: the event is not sent.
+Verified 2026-10-20 against a mock relay that refuses: the page showed
+"That didn't save…" and kept the event queued.
+
+### Bot handling
+
+A honeypot field (`website`, off-screen) is checked before sending; a filled
+honeypot means an automated submitter, and the event is not sent. Views are
+deduped per visitor per 30 minutes.
 
 ## Instrumentation (SAR-13 / A7, definition v1.1.0)
 
@@ -60,18 +79,18 @@ Every event carries the A7 payload next to this page's readable fields:
 Also sent, for the SAR-66 / SAR-94 contracts: `event`, `event_version`,
 `definition_version`, `capture_surface`, `product`, `ts`, `visitor_id`,
 `page_title`, `page_path`, `referrer`, `src`/`utm_*`. On a signup: `email`,
-`company`, `role`, `sizing`, `consent`.
+`company`, `segment`, `sizing`, `consent`.
 
-`_subject` is set per event so the inbox can be tallied without opening each
-message: `P1 waitlist - page view` and `P1 waitlist - signup`.
+`_subject` is set per event so the catch mailbox can be tallied without opening
+each message: `P1 waitlist - page view` and `P1 waitlist - signup`.
 
 ### Deviations from A7, and why
 
 - **Transport.** A7 assumes the A8 collector (Cloudflare Worker + D1). The
   company hosting and analytics accounts cannot be created before the board
   approval at the D+5 gate, so events travel through a free-tier mail relay
-  and are counted from the catch inbox. The payload is A7-shaped, so it can be
-  replayed into the A8 collector unchanged.
+  and are counted from the catch mailbox. The payload is A7-shaped, so it can
+  be replayed into the A8 collector unchanged.
 - **Visitor id.** A7 takes the visitor id from a server-set `sv_uid` cookie.
   There is no server here, so the id is a UUIDv4 kept in `localStorage` on the
   page's own origin. It matches A7's `VISITOR_ID_PATTERN`.
@@ -82,7 +101,7 @@ message: `P1 waitlist - page view` and `P1 waitlist - signup`.
 
 ## Daily tally (for the D+5 demand gate)
 
-Per day, from the catch inbox:
+Per day, from the catch mailbox:
 
 1. Count the emails with subject `P1 waitlist - signup`. That is the day's
    signups.
@@ -97,5 +116,5 @@ Per day, from the catch inbox:
 Post the tally on B2 ([SAR-20](/SAR/issues/SAR-20)) as it accumulates, with
 the raw numbers, in the format the gate protocol asks for.
 
-When A8 lands, replace the inbox tally with the A8 collector's own report so
+When A8 lands, replace the mailbox tally with the A8 collector's own report so
 the numbers carry the ratified definition version.
