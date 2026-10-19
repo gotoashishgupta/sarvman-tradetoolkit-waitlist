@@ -179,11 +179,11 @@
       recordSignup(form).then(function () {
         form.reset();
         status.className = "form-status ok";
-        status.textContent = "You're on the list. Check your inbox to confirm — we'll email you when the calculators go live.";
+        status.textContent = "You're on the list. We'll email you when the calculators go live.";
         btn.disabled = false;
       }).catch(function (err) {
         status.className = "form-status err";
-        status.textContent = "That didn't send. Please try again, or email us directly.";
+        status.textContent = "That didn't save. Please try again in a moment.";
         btn.disabled = false;
         if (window.console) console.error("signup post failed", err);
       });
