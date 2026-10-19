@@ -100,6 +100,7 @@ a { color: var(--accent); }
 .calc-body dd span { font-size: .76rem; color: var(--ink-soft); font-weight: 500; margin-left: 3px; }
 .calc-foot { display: flex; gap: 8px; padding: 0 18px 18px; flex-wrap: wrap; }
 .calc-pill { font-size: .78rem; padding: 4px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 620; }
+.calc-caption { font-size: .8rem; color: var(--ink-soft); padding: 0 18px 16px; margin: 0; }
 
 /* ── bands ──────────────────────────────────────────────── */
 .band { padding: clamp(44px, 6vw, 76px) 0; }
@@ -157,8 +158,9 @@ a { color: var(--accent); }
 .site-foot { border-top: 1px solid var(--line); padding: 34px 0 44px; }
 .foot-grid { display: flex; justify-content: space-between; gap: 26px; flex-wrap: wrap; }
 .foot-brand { color: var(--ink-soft); font-size: .93rem; margin: 10px 0 0; max-width: 34ch; }
-.foot-meta { color: var(--ink-soft); font-size: .87rem; text-align: right; }
+.foot-meta { color: var(--ink-soft); font-size: .87rem; text-align: right; max-width: 44ch; }
 .foot-meta p { margin: 0 0 4px; }
+.foot-legal { font-size: .8rem; }
 @media (max-width: 620px) { .foot-meta { text-align: left; } }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

@@ -7,6 +7,9 @@
  *
  * Both carry a stable visitor id, so the signup rate can be computed as
  * signups / unique views without a third-party analytics tracker.
+ * Every event also carries product, page_path and capture_surface per the SAR-66
+ * contract ("landing_page" here; "result_block" / "spec_sheet_end" on the
+ * B6 tool pages) and the SAR-94 finance data contract (product id per product).
  * Events are queued in localStorage and flushed to the endpoint, so a
  * signup that happens while the endpoint is unreachable is not lost.
  */
@@ -61,6 +64,7 @@
     });
     out.page_path = location.pathname;
     out.referrer = document.referrer || "";
+    out.product = CFG.PRODUCT_ID || "p1-tradetoolkit";
     return out;
   }
 
@@ -117,6 +121,7 @@
     var evt = Object.assign({
       event: "view",
       event_version: "1",
+      capture_surface: CFG.CAPTURE_SURFACE || "landing_page",
       ts: new Date().toISOString(),
       visitor_id: visitorId(),
       page_title: document.title
@@ -134,6 +139,7 @@
     var evt = Object.assign({
       event: "signup",
       event_version: "1",
+      capture_surface: CFG.CAPTURE_SURFACE || "landing_page",
       ts: new Date().toISOString(),
       visitor_id: visitorId(),
       email: (form.email.value || "").trim(),
@@ -176,14 +182,33 @@
       btn.disabled = true;
       status.textContent = "Sending…";
 
-      recordSignup(form).then(function () {
+      // No endpoint configured (pre-publish): never fake a success. Keep the
+      // signup queued on-device and tell the visitor plainly what to do.
+      if (!ENDPOINT) {
+        recordSignup(form).catch(function () {});
+        var contact = (CFG.CONTACT_EMAIL || "").trim();
+        status.className = "form-status err";
+        status.textContent = contact
+          ? "The signup list isn't live yet — please email " + contact + " and we'll add you."
+          : "The signup list isn't live yet — please check back soon.";
+        btn.disabled = false;
+        return;
+      }
+
+      recordSignup(form).then(function (res) {
+        if (res && res.queued && res.reason === "no-endpoint") return; // handled above
         form.reset();
         status.className = "form-status ok";
-        status.textContent = "You're on the list. Check your inbox to confirm — we'll email you when the calculators go live.";
+        status.textContent = "You're on the list — we'll email you when the calculators go live.";
         btn.disabled = false;
       }).catch(function (err) {
+        // Post failed but the signup stays queued on-device and retries on
+        // the next visit (flush on boot + on 'online'). Tell the visitor.
+        var contact2 = (CFG.CONTACT_EMAIL || "").trim();
         status.className = "form-status err";
-        status.textContent = "That didn't send. Please try again, or email us directly.";
+        status.textContent = contact2
+          ? "That didn't send, but it's saved on this device and will retry. Or email " + contact2 + " and we'll add you."
+          : "That didn't send, but it's saved on this device and will retry automatically.";
         btn.disabled = false;
         if (window.console) console.error("signup post failed", err);
       });
