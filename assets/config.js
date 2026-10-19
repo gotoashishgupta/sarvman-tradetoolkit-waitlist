@@ -5,9 +5,13 @@
  * providers (e.g. first-party form endpoint once the platform lands).
  */
 window.SARVMAN_CONFIG = {
-  // FormSubmit AJAX endpoint. Format: https://formsubmit.co/ajax/<inbox-address>
-  // Every submission is delivered as an email to that inbox, with a JSON response.
-  CAPTURE_ENDPOINT: "",
+  // Capture endpoint. Format: https://formsubmit.co/ajax/<form-id>
+  // The form id is the activated handle for this site's endpoint; it is not the
+  // inbox address. Every submission is delivered as an email to the company
+  // mail catch, which is where the lead list lives until the A8 platform store
+  // is ready. Changing this value is the only edit needed to move capture to a
+  // first-party endpoint later.
+  CAPTURE_ENDPOINT: "https://formsubmit.co/ajax/a75a3e890dd0d599cf4ea72f8ee32e40",
 
   // Hidden fields stamped on every event so a submission can be traced back
   // to the campaign that produced it.
@@ -17,13 +21,7 @@ window.SARVMAN_CONFIG = {
   // Keeps the signup-rate denominator honest (one visit per visitor per window).
   VIEW_DEDUPE_MINUTES: 30,
 
-  // Pre-registered pass/fail thresholds for the D+5 demand gate.
-  // See the evidence pack: SAR-20 / "demand-validation plan".
-  THRESHOLDS: {
-    signupRatePass: 0.02,        // visitor -> email capture rate (SAR-1 plan rev.3, section 6)
-    signupRateMarginal: 0.005,    // below this the demand signal is treated as absent
-    minSignups: 20,               // absolute floor below which a rate is not meaningful
-    minConversations: 10,         // completed contractor conversations
-    minConversationsQualifying: 5 // conversations confirming the problem and the job
-  }
+  // The demand gate's pass/fail thresholds are the CEO's, pre-registered in the
+  // P1 D+5 demand gate protocol (SAR-21, document `gate-protocol`). They are not
+  // duplicated here on purpose: this page measures, it does not decide.
 };

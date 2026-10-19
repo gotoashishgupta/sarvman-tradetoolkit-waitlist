@@ -138,7 +138,7 @@
       visitor_id: visitorId(),
       email: (form.email.value || "").trim(),
       company: (form.company.value || "").trim(),
-      role: form.role.value,
+      segment: form.segment.value,
       sizing: sizing,
       consent: form.consent.checked ? "yes" : "no"
     }, campaignFields());
