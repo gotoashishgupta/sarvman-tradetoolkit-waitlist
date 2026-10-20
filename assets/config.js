@@ -18,6 +18,23 @@ window.WAITLIST_CONFIG = {
   // endpoint has no quota, no third party in the write path, and no cost.
   CAPTURE_ENDPOINT: "https://qld-unknown-hazardous-quality.trycloudflare.com/capture",
 
+  // Shared secret on the write path. The capture service refuses a write
+  // that does not carry it, so the endpoint is not a public form anyone
+  // can post to.
+  //
+  // It travels as the X-Waitlist-Token header, not as a form field. A
+  // header is what makes a cross-site post fail in the browser: a request
+  // with a header is preflighted, and the preflight only passes for the
+  // page's own origin.
+  //
+  // The value is public by design: the page is static, so anything the page
+  // can send, a reader of the page source can send too. It raises the bar
+  // for a drive-by post and it stops a stranger's browser being used as the
+  // writer; it is not a secret against somebody who reads the page. A
+  // first-party host with a server-side origin check is the real fix and
+  // lands with the host move.
+  CAPTURE_TOKEN: "e048f37f56384f9cb58bf719bbf7d1816bd5af5a9b5bce98",
+
   // Product this page belongs to. Stamped on every event so the weekly digest
   // can report per product.
   PRODUCT_ID: "p1-tradetoolkit",

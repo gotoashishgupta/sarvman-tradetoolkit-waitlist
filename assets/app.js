@@ -32,6 +32,7 @@
 
   var CFG = window.WAITLIST_CONFIG || {};
   var ENDPOINT = (CFG.CAPTURE_ENDPOINT || "").trim();
+  var TOKEN = (CFG.CAPTURE_TOKEN || "").trim();
   var QUEUE_KEY = "st_event_queue";
   var VID_KEY = "st_visitor_id";
   var LAST_VIEW_KEY = "st_last_view_ts";
@@ -156,7 +157,14 @@
     if (!ENDPOINT) return Promise.resolve({ queued: true, reason: "no-endpoint" });
     return fetch(ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        // The write path's shared secret. The capture service refuses a
+        // write that does not carry it, so the endpoint is not a public form
+        // anyone can post to.
+        "X-Waitlist-Token": TOKEN
+      },
       body: toFormBody(evt)
     }).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -310,9 +318,16 @@
         form.email.focus();
         return;
       }
-      if (!form.consent.checked) {
+      // A question stands on its own: an address and the text, no signup and
+      // no marketing tick. The tick is for the launch email, and the launch
+      // email is the only thing it is for. Somebody who wants their details
+      // deleted, or who wants us to stop emailing them, must not have to opt
+      // in to a marketing email to ask.
+      var question = (form.question ? form.question.value : "").trim();
+      var wantsSignup = form.consent.checked;
+      if (!wantsSignup && !question) {
         status.className = "form-status err";
-        status.textContent = "Please tick the box so we can email you.";
+        status.textContent = "Please tick the box so we can email you, or write us a question.";
         form.consent.focus();
         return;
       }
@@ -329,16 +344,18 @@
       btn.disabled = true;
       status.textContent = "Sending…";
 
-      // Read the question and the address before the form is reset: both are
+      // Read the address and the company before the form is reset: they are
       // needed to send the question as its own event.
-      var question = (form.question ? form.question.value : "").trim();
       var emailAddress = (form.email.value || "").trim();
       var companyName = (form.company.value || "").trim();
 
       // No endpoint configured (pre-publish): never fake a success. Keep the
       // signup queued on-device and tell the visitor plainly what to do.
       if (!ENDPOINT) {
-        recordSignup(form).catch(function () {});
+        if (wantsSignup) recordSignup(form).catch(function () {});
+        if (question) {
+          recordQuestion(emailAddress, companyName, question).catch(function () {});
+        }
         status.className = "form-status err";
         status.textContent = "The signup list isn't live yet — please check back soon.";
         btn.disabled = false;
@@ -350,10 +367,15 @@
       // signup, and a failure to save the signup cannot lose the question.
       // Each is queued on the visitor's device on its own, so each retries on
       // its own.
-      var signupResult = recordSignup(form).then(
-        function () { return { ok: true }; },
-        function (err) { return { ok: false, err: err }; }
-      );
+      // A signup only happens when the tick is on. Without the tick there is
+      // no signup: the visitor asked a question, and a question is not a
+      // signup and is never counted as one.
+      var signupResult = wantsSignup
+        ? recordSignup(form).then(
+            function () { return { ok: true }; },
+            function (err) { return { ok: false, err: err }; }
+          )
+        : Promise.resolve({ ok: true, skipped: true });
       var questionResult = question
         ? recordQuestion(emailAddress, companyName, question).then(
             function () { return { ok: true }; },
@@ -379,6 +401,17 @@
 
         form.reset();
         status.className = "form-status ok";
+        if (!wantsSignup) {
+          // A question on its own. The visitor is not on the list, and is
+          // not told that they are.
+          if (asked.ok) {
+            status.textContent = "Your question was sent to the support desk. We reply by email within 1 business day.";
+          } else {
+            status.className = "form-status err";
+            status.textContent = "Your question didn't send. It is saved on this device and will retry.";
+          }
+          return;
+        }
         status.textContent = "You're on the list. We'll email you when the calculators go live.";
         if (!question) return;
         if (asked.ok) {
