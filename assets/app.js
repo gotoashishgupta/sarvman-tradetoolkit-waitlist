@@ -132,6 +132,12 @@
       var v = evt[k];
       if (v === null || v === undefined || v === "") return;
       if (Array.isArray(v)) v = v.join(", ");
+      // The A7 props field is an object, but the relay takes a form body, so
+      // a nested object has to be encoded as text or it is flattened to
+      // "[object Object]" and the properties are lost. It is encoded as JSON
+      // and decoded when the event is read back, so the props survive the
+      // round trip and can be replayed into the collector unchanged.
+      if (typeof v === "object") v = JSON.stringify(v);
       body.append(k, v);
     });
     return body;
