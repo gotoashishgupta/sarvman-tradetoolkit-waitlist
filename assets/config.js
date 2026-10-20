@@ -16,7 +16,7 @@ window.WAITLIST_CONFIG = {
   // live form id, on an unused form id, and on both the AJAX and the plain
   // endpoint - so a signup was being dropped at the moment it happened. This
   // endpoint has no quota, no third party in the write path, and no cost.
-  CAPTURE_ENDPOINT: "https://past-permission-frozen-cigarettes.trycloudflare.com/capture",
+  CAPTURE_ENDPOINT: "https://qld-unknown-hazardous-quality.trycloudflare.com/capture",
 
   // Product this page belongs to. Stamped on every event so the weekly digest
   // can report per product.
