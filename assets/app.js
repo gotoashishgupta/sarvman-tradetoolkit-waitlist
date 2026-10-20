@@ -7,13 +7,13 @@
  *
  * Both carry a stable visitor id, so the signup rate can be computed as
  * signups / unique views without a third-party analytics tracker.
- * Every event also carries product, page_path and capture_surface per the SAR-66
- * contract ("landing_page" here; "result_block" / "spec_sheet_end" on the
- * B6 tool pages) and the SAR-94 finance data contract (product id per product).
+ * Every event also carries product, page_path and capture_surface per the
+ * event contract ("landing_page" here; "result_block" / "spec_sheet_end" on
+ * the tool pages) and the finance data contract (product id per product).
  *
- * Every event also carries the A7 payload (SAR-13, definition v1.1.0): the
+ * Every event also carries the measurement payload (definition v1.1.0): the
  * referrer is classified by the standard's own rules at count time, and the
- * same payload can be replayed into the A8 collector when it lands.
+ * same payload can be replayed into the platform collector when it lands.
  *
  * Events are queued in localStorage and flushed to the endpoint, so a
  * signup that happens while the endpoint is unreachable is not lost.
@@ -21,7 +21,7 @@
 (function () {
   "use strict";
 
-  var CFG = window.SARVMAN_CONFIG || {};
+  var CFG = window.WAITLIST_CONFIG || {};
   var ENDPOINT = (CFG.CAPTURE_ENDPOINT || "").trim();
   var QUEUE_KEY = "st_event_queue";
   var VID_KEY = "st_visitor_id";
@@ -31,8 +31,8 @@
 
   function uuid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-    // Fallback shaped like a UUIDv4 so it still matches the A7 visitor-id
-    // pattern (constants.ts VISITOR_ID_PATTERN) when the crypto API is absent.
+    // Fallback shaped like a UUIDv4 so it still matches the measurement
+    // standard's visitor-id pattern when the crypto API is absent.
     var b = new Uint8Array(16);
     if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(b);
     else for (var i = 0; i < 16; i += 1) b[i] = Math.floor(Math.random() * 256);
@@ -88,10 +88,10 @@
     return out;
   }
 
-  /* ── A7 measurement fields (SAR-13, definition v1.1.0) ──
+  /* ── measurement fields (definition v1.1.0) ──
    *
-   * Every event carries the A7 payload next to this page's readable fields:
-   *   v  payload version              e  A7 event type
+   * Every event carries the standard payload next to this page's readable fields:
+   *   v  payload version              e  event type
    *   pa page path                    r  referrer
    *   t  client timestamp (epoch ms)  c  analytics consent state
    *   o  event properties
@@ -111,14 +111,14 @@
     if (!source) source = "direct";
     return {
       v: 1,
-      e: (CFG.A7_EVENT_NAME && CFG.A7_EVENT_NAME[kind]) || kind,
+      e: (CFG.EVENT_NAME && CFG.EVENT_NAME[kind]) || kind,
       pa: location.pathname,
       r: referrer,
       t: Date.now(),
-      // P1 is a professional audience and A7 sets its consent mode to
-      // "not-required" (platform products.ts), so this page sets no analytics
-      // consent state. The marketing consent the visitor ticks is carried in
-      // its own field and is not the same thing.
+      // P1 is a professional audience and the measurement standard sets its
+      // consent mode to "not-required" for that audience, so this page sets no
+      // analytics consent state. The marketing consent the visitor ticks is
+      // carried in its own field and is not the same thing.
       c: "unknown",
       o: { source: source }
     };

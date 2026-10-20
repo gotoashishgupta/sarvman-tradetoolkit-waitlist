@@ -1,60 +1,53 @@
 /*
- * Sarvman TradeToolkit — waitlist landing page
- * Single source of truth for the capture endpoint and event contract.
+ * TradeToolkit waitlist — landing page configuration.
+ *
+ * Single source of truth for the capture endpoint and the event contract.
  * Changing CAPTURE_ENDPOINT is the only edit needed to move capture between
  * providers (e.g. first-party form endpoint once the platform lands).
  */
-window.SARVMAN_CONFIG = {
-  // Capture endpoint. Format: https://formsubmit.co/ajax/<form-id>
-  // The form id is the activated handle for this site's endpoint; it is not the
-  // inbox address, so the page does not publish the mailbox. Every submission
-  // is delivered as an email to the company mail catch, which is where the
-  // lead list lives until the A8 platform store is ready. Changing this value
-  // is the only edit needed to move capture to a first-party endpoint later.
+window.WAITLIST_CONFIG = {
+  // Capture endpoint: the site's own capture service, published to the public
+  // internet through a zero-account network tunnel. The host name changes when
+  // the tunnel is restarted; scripts/waitlist-tunnel.sh rewrites this line and
+  // publishes it, so the page always points at the tunnel that is running.
   //
-  // The relay activates per page origin, not per form: a submission from an
-  // origin it has not seen is refused with "This form needs Activation" and
-  // dropped. The published origin below is activated (verified 2026-10-20).
-  // A new origin — a preview deploy, the company domain — needs its own
-  // one-click activation before it can accept anything.
-  CAPTURE_ENDPOINT: "https://formsubmit.co/ajax/a75a3e890dd0d599cf4ea72f8ee32e40",
+  // The previous endpoint was a free third-party form relay. It refused every
+  // submission from this network with HTTP 429 - verified 2026-10-20 on the
+  // live form id, on an unused form id, and on both the AJAX and the plain
+  // endpoint - so a signup was being dropped at the moment it happened. This
+  // endpoint has no quota, no third party in the write path, and no cost.
+  CAPTURE_ENDPOINT: "https://past-permission-frozen-cigarettes.trycloudflare.com/capture",
 
-  // Product this page belongs to. Stamped on every event per the SAR-94
-  // finance data contract so the weekly digest can report per product.
-  // P1 TradeToolkit = "p1-tradetoolkit" (SAR-30); P2/P3 pages use their own id.
+  // Product this page belongs to. Stamped on every event so the weekly digest
+  // can report per product.
   PRODUCT_ID: "p1-tradetoolkit",
 
   // Hidden fields stamped on every event so a submission can be traced back
   // to the campaign that produced it.
   SOURCE_FIELDS: ["src", "utm_source", "utm_medium", "utm_campaign", "utm_content"],
 
-  // Which capture surface this page is. SAR-66 event contract: every email-
-  // capture submit fires one analytics event carrying page_path and
-  // capture_surface, one of "result_block" | "spec_sheet_end" | "landing_page".
-  // Tool and spec-sheet pages built under B6 set this to their surface.
+  // Which capture surface this page is: "landing_page" here. Tool and
+  // spec-sheet pages set their own surface.
   CAPTURE_SURFACE: "landing_page",
 
-  // Measurement standard this page is instrumented against: SAR-13 (A7)
-  // definition v1.1.0. Stamped on every event so a number computed from these
-  // events carries the definition it was computed with.
+  // The measurement definition this page is instrumented against. Stamped on
+  // every event so a number computed from these events carries the definition
+  // it was computed with.
   MEASUREMENT_DEFINITION_VERSION: "1.1.0",
 
-  // A7 event names (SAR-13, constants.ts EVENT_TYPES). The page sends both
-  // names on every event: "event" is this page's readable label and "e" is the
-  // A7 event type, so the same payload can be replayed into the A8 collector
-  // when it lands without touching this page.
-  A7_EVENT_NAME: {
+  // Event names, so the same payload can be replayed into the platform
+  // collector when it lands without touching this page.
+  EVENT_NAME: {
     view: "pageview",
     signup: "email_capture"
   },
 
   // Minimum hours between two "view" events from the same visitor id.
   //
-  // One view event per visitor per day. The relay's free tier throttles the
-  // whole account, and a view per visit is the bulk of the traffic. This does
-  // not change any number the standard measures: unique visitors are counted
-  // from distinct visitor ids, so the daily tally computes "unique visitors
-  // today" and "unique visitors over the period" from the same events.
+  // One view event per visitor per day. This does not change any number the
+  // standard measures: unique visitors are counted from distinct visitor ids,
+  // so the daily tally computes "unique visitors today" and "unique visitors
+  // over the period" from the same events.
   VIEW_DEDUPE_MINUTES: 1440,
 
   // Most signups kept on a visitor's device waiting to be sent. A signup that
@@ -62,7 +55,7 @@ window.SARVMAN_CONFIG = {
   // outage from filling the browser's storage.
   MAX_QUEUED_SIGNUPS: 20,
 
-  // The demand gate's pass/fail thresholds are the CEO's, pre-registered in the
-  // P1 D+5 demand gate protocol (SAR-21, document `gate-protocol`). They are not
-  // duplicated here on purpose: this page measures, it does not decide.
+  // The demand gate's pass/fail thresholds are the CEO's, pre-registered in
+  // the P1 D+5 demand gate protocol. They are not duplicated here on purpose:
+  // this page measures, it does not decide.
 };
