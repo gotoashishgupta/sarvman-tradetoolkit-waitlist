@@ -191,6 +191,14 @@
             <label><input type="checkbox" name="sizing" value="specs"> Spec sheets &amp; takeoff</label>
           </div>
         </fieldset>
+        <!-- Optional question for the support desk. It is posted as its own
+             event type, into its own file, so a question is never counted as
+             a signup and never moves the demand-gate numbers. -->
+        <div class="field">
+          <label for="question">Anything you want to ask us? <span class="opt">(optional)</span></label>
+          <textarea id="question" name="question" rows="4" maxlength="2000" placeholder="A question about the calculators, the launch, or how you work today."></textarea>
+          <p class="field__help">Optional. If you write a question here it goes to the support desk as its own message, separate from your waitlist signup.</p>
+        </div>
         <!-- Honeypot: a real visitor never sees or fills this. A bot that
              submits the form fills every field it can, so this is the cheapest
              first line of defence against a fake signup inflating the gate. -->

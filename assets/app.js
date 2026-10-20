@@ -1,12 +1,18 @@
 /*
  * TradeToolkit waitlist — first-party event capture.
  *
- * Two events are recorded, both as form posts to the capture endpoint:
- *   "view"   — a unique visit to the page (deduped per visitor per window)
- *   "signup" — a completed waitlist signup
+ * Three events are recorded, all as form posts to the capture endpoint:
+ *   "view"    — a unique visit to the page (deduped per visitor per window)
+ *   "signup"  — a completed waitlist signup
+ *   "question" — an optional question for the support desk
  *
- * Both carry a stable visitor id, so the signup rate can be computed as
- * signups / unique views without a third-party analytics tracker.
+ * A question is its own event type on purpose. It carries the address and the
+ * text, it lands in its own file, and it never enters the signup tally or the
+ * view log, so a question can never be counted as a signup and can never move
+ * the demand-gate numbers.
+ *
+ * The view and the signup carry a stable visitor id, so the signup rate can be
+ * computed as signups / unique views without a third-party analytics tracker.
  * Every event also carries product, page_path and capture_surface per the
  * event contract ("landing_page" here; "result_block" / "spec_sheet_end" on
  * the tool pages) and the finance data contract (product id per product).
@@ -14,6 +20,9 @@
  * Every event also carries the measurement payload (definition v1.1.0): the
  * referrer is classified by the standard's own rules at count time, and the
  * same payload can be replayed into the platform collector when it lands.
+ * The question event is the exception: it is a support message rather than a
+ * measurement event, so it carries no measurement envelope and can never be
+ * read as one.
  *
  * Events are queued in localStorage and flushed to the endpoint, so a
  * signup that happens while the endpoint is unreachable is not lost.
@@ -67,8 +76,8 @@
   function enqueue(evt) {
     var q = readQueue();
     q.push(evt);
-    // Only signups are queued (see recordView), and the bound stops a long
-    // outage from filling the browser's storage.
+    // Only signups and questions are queued (see recordView), and the bound
+    // stops a long outage from filling the browser's storage.
     var max = CFG.MAX_QUEUED_SIGNUPS || 20;
     while (q.length > max) q.shift();
     writeQueue(q);
@@ -247,6 +256,30 @@
     return post(evt);
   }
 
+  function recordQuestion(email, company, question) {
+    // A support-desk question. It is deliberately not a measurement event:
+    // it carries no measurement envelope, so nothing downstream can read it
+    // as a page view or an email capture, and it lands in its own file.
+    var max = CFG.MAX_QUESTION_CHARS || 2000;
+    var evt = Object.assign({
+      event: "question",
+      event_version: "1",
+      capture_surface: CFG.CAPTURE_SURFACE || "landing_page",
+      ts: new Date().toISOString(),
+      visitor_id: visitorId(),
+      email: email,
+      company: company,
+      question: question.slice(0, max),
+      page_title: document.title,
+      // Subject line, so the desk can tell a question from a signup in the
+      // queue without opening each row.
+      _subject: "P1 waitlist - question"
+    }, campaignFields());
+
+    enqueue(evt);
+    return post(evt);
+  }
+
   /* ── form wiring ──────────────────────────────────────── */
 
   function wireForm() {
@@ -285,6 +318,12 @@
       btn.disabled = true;
       status.textContent = "Sending…";
 
+      // Read the question and the address before the form is reset: both are
+      // needed to send the question as its own event.
+      var question = (form.question ? form.question.value : "").trim();
+      var emailAddress = (form.email.value || "").trim();
+      var companyName = (form.company.value || "").trim();
+
       // No endpoint configured (pre-publish): never fake a success. Keep the
       // signup queued on-device and tell the visitor plainly what to do.
       if (!ENDPOINT) {
@@ -295,19 +334,48 @@
         return;
       }
 
-      recordSignup(form).then(function (res) {
-        if (res && res.queued && res.reason === "no-endpoint") return; // handled above
+      // The question is sent as its own event, in parallel with the signup and
+      // never as part of it. Two reasons: a question is never counted as a
+      // signup, and a failure to save the signup cannot lose the question.
+      // Each is queued on the visitor's device on its own, so each retries on
+      // its own.
+      var signupResult = recordSignup(form).then(
+        function () { return { ok: true }; },
+        function (err) { return { ok: false, err: err }; }
+      );
+      var questionResult = question
+        ? recordQuestion(emailAddress, companyName, question).then(
+            function () { return { ok: true }; },
+            function (err) { return { ok: false, err: err }; }
+          )
+        : Promise.resolve({ ok: true });
+
+      Promise.all([signupResult, questionResult]).then(function (results) {
+        var signup = results[0];
+        var asked = results[1];
+        btn.disabled = false;
+
+        if (!signup.ok) {
+          // The signup stays queued on-device and retries on the next visit
+          // (flush on boot + on 'online'). Tell the visitor.
+          status.className = "form-status err";
+          status.textContent = question && asked.ok
+            ? "Your question was sent, but your signup didn't save. Please try again in a moment."
+            : "That didn't save. Please try again in a moment.";
+          if (window.console) console.error("signup post failed", signup.err);
+          return;
+        }
+
         form.reset();
         status.className = "form-status ok";
         status.textContent = "You're on the list. We'll email you when the calculators go live.";
-        btn.disabled = false;
-      }).catch(function (err) {
-        // The post failed, but the signup stays queued on-device and retries on
-        // the next visit (flush on boot + on 'online'). Tell the visitor.
-        status.className = "form-status err";
-        status.textContent = "That didn't save. Please try again in a moment.";
-        btn.disabled = false;
-        if (window.console) console.error("signup post failed", err);
+        if (!question) return;
+        if (asked.ok) {
+          status.textContent = "You're on the list — we'll email you when the calculators go live. Your question has been sent to the support desk.";
+        } else {
+          status.className = "form-status err";
+          status.textContent = "You're on the list, but your question didn't send. It is saved on this device and will retry.";
+        }
       });
     });
   }

@@ -37,10 +37,18 @@ window.WAITLIST_CONFIG = {
 
   // Event names, so the same payload can be replayed into the platform
   // collector when it lands without touching this page.
+  //
+  // A support-desk question is deliberately absent: it is a support message,
+  // not a measurement event, and it carries no measurement envelope. It is
+  // stored in its own file and is never counted as a signup.
   EVENT_NAME: {
     view: "pageview",
     signup: "email_capture"
   },
+
+  // Longest question text kept. The box on the page has the same limit, and
+  // the capture service caps it again on arrival.
+  MAX_QUESTION_CHARS: 2000,
 
   // Minimum hours between two "view" events from the same visitor id.
   //
