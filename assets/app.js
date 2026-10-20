@@ -203,7 +203,19 @@
 
   /* ── events ───────────────────────────────────────────── */
 
+  /* ── bot handling ──────────────────────────────────────── */
+
+  // The measurement standard excludes bots by User-Agent at ingest. The
+  // capture service is the ingest point now and checks the User-Agent too;
+  // this check keeps the request off the wire in the first place.
+  function isBot() {
+    var ua = (navigator.userAgent || "").toLowerCase();
+    if (navigator.webdriver) return true;
+    return /(bot\b|crawler|crawl|spider|slurp|mediapartners|baidu|yandex|semrush|ahrefs|dataminr|headless|phantomjs|facebookexternalhit|bingpreview)/.test(ua);
+  }
+
   function recordView() {
+    if (isBot()) return;
     var now = Date.now();
     var windowMs = (CFG.VIEW_DEDUPE_MINUTES || 1440) * 60000;
     try {
@@ -225,10 +237,9 @@
       _subject: "P1 waitlist - page view"
     }, measurementFields("view"), campaignFields());
 
-    // A view is best-effort: it is sent once and not queued. The relay's free
-    // tier throttles the whole account, and a queue of failed views would be
-    // retried on every later visit. A signup is never dropped, so only
-    // signups go in the queue.
+    // A view is best-effort: it is sent once and not queued. A queue of failed
+    // views would be retried on every later visit. A signup is never dropped:
+    // it is kept on the visitor's device and retried.
     post(evt).catch(function () { /* lost, and that is the trade */ });
   }
 
