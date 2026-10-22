@@ -16,7 +16,7 @@ window.WAITLIST_CONFIG = {
   // live form id, on an unused form id, and on both the AJAX and the plain
   // endpoint - so a signup was being dropped at the moment it happened. This
   // endpoint has no quota, no third party in the write path, and no cost.
-  CAPTURE_ENDPOINT: "https://telecharger-cabinet-continuously-member.trycloudflare.com/capture",
+  CAPTURE_ENDPOINT: "https://existence-techrepublic-sight-offline.trycloudflare.com/capture",
 
   // Shared secret on the write path. The capture service refuses a write
   // that does not carry it, so the endpoint is not a public form anyone
